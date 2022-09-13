@@ -1,174 +1,158 @@
-import { Notify } from 'notiflix/build/notiflix-notify-aio';
-import { nanoid } from 'nanoid';
-
 import React, { Component } from 'react';
 
+import { toastConfigs } from 'config/notifyConfig';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+import { Circles } from 'react-loader-spinner';
+
 //* Components
-import Title from 'components/PhoneBook/Title';
-import ContactForm from 'components/PhoneBook/ContactForm';
-import Filter from 'components/PhoneBook/Filter';
-import ContactList from 'components/PhoneBook/ContactList';
-import Notification from 'components/PhoneBook/Notification';
-import Box from 'components/PhoneBook/Box';
-import Modal from 'components/PhoneBook/Modal';
-import AddContact from 'components/PhoneBook/AddContact';
+import fetchImage from 'services';
 
-import { notifyConfigs } from 'config/notifyConfig';
+import Title from 'components/Title';
+import Box from 'components/Box';
+import Button from 'components/Button';
 
-// import ProgComponents from 'components/PhoneBook';
-// const {Section, ContactForm,Filter,ContactList,Notification}=ProgComponents;
+import SearchBar from 'components/SearchBar';
+import SearchForm from 'components/SearchForm';
+import ImageGallery from 'components/ImageGallery';
+
+const Status = {
+  IDLE: 'idle',
+  PENDING: 'pending',
+  RESOLVED: 'resolved',
+  LOADED: 'loaded',
+  REJECTED: 'rejected',
+};
 
 export default class App extends Component {
   state = {
-    contacts: [
-      // { id: 'id-1', name: 'Rosie Simpson', number: '459-12-56' },
-      // { id: 'id-2', name: 'Hermione Kline', number: '443-89-12' },
-      // { id: 'id-3', name: 'Eden Clements', number: '645-17-79' },
-      // { id: 'id-4', name: 'Annie Copeland', number: '227-91-26' },
-    ],
-    filter: '',
-    showModal: false,
+    searchValue: '',
+    images: [],
+    page: 1,
+    totalHits: 0,
+    status: Status.IDLE,
   };
-
-  /**get contacts from Locale Storage */
-  componentDidMount() {
-    const contacts = localStorage.getItem('contacts');
-    const parsedContacts = JSON.parse(contacts);
-    if (parsedContacts) {
-      this.setState({ contacts: parsedContacts });
-    }
-  }
 
   /**set contacts from Locale Storage */
-  componentDidUpdate(prevProps, prevState) {
-    if (this.state.contacts !== prevState.contacts) {
-      localStorage.setItem('contacts', JSON.stringify(this.state.contacts));
+  async componentDidUpdate(_, prevState) {
+    if (
+      this.state.page !== prevState.page ||
+      this.state.searchValue !== prevState.searchValue
+    ) {
+      await this.getImages();
     }
   }
 
-  /** checks if a contact exists in contacts list*/
-  existContact = name => {
-    const { contacts } = this.state;
-    return contacts.find(
-      data => data.name.toLowerCase() === name.toLowerCase()
-    );
-  };
+  /** event handler filter*/
+  handleFormSubmit = e => {
+    e.preventDefault();
+    const searchValue = e.target.elements.query.value;
 
-  /** submit event handler*/
-  formSubmitHandler = data => {
-    const contact = {
-      id: nanoid(),
-      ...data,
-    };
-
-    if (this.existContact(contact.name)) {
-      return Notify.info('Such a contact already exists', notifyConfigs);
+    if (
+      searchValue.trim() !== this.state.searchValue ||
+      this.state.page !== 1
+    ) {
+      this.setState({
+        searchValue,
+        page: 1,
+        images: [],
+        totalHits: 0,
+      });
     }
 
-    this.setState(({ contacts }) => ({
-      contacts: [contact, ...contacts],
-    }));
-  };
-
-  /** event handler filter*/
-  changeFilter = e => {
-    this.setState({
-      filter: e.currentTarget.value.trim(),
-    });
-  };
-
-  /** event handler filter*/
-  handleSearch = e => {
-    console.log('clickBtn');
-    // this.setState({
-    // filter: e.currentTarget.value.trim(),
-    // });
+    e.target.reset();
   };
 
   /** calculated value for filter*/
-  getVisibleContacts = () => {
-    const { contacts, filter } = this.state;
-    const normalizeFilter = filter.toLowerCase();
-    return contacts.filter(data => {
-      return data.name.toLowerCase().includes(normalizeFilter);
-    });
+  getImages = async () => {
+    const { searchValue, page } = this.state;
+    this.setState({ status: Status.PENDING });
+    try {
+      if (this.state.images.length > this.state.totalHits) {
+        this.setState({ status: Status.LOADED });
+        toast.info('Все завантажено');
+        return;
+      }
+
+      const data = await fetchImage(searchValue, page);
+
+      if (this.state.page === 1) {
+        if (data.totalHits === 0) {
+          toast.info(
+            `Nothing was found for your query - "${this.state.searchValue}"`
+          );
+          this.setState({ status: Status.RESOLVED });
+          return;
+        }
+        toast.success(`${data.totalHits} pictures were found`, toastConfigs);
+        this.setState({ totalHits: data.totalHits });
+      }
+
+      this.setState(prevState => ({
+        images: [...prevState.images, ...data.hits],
+        status: Status.RESOLVED,
+      }));
+
+      if (data.hits.length < 12) {
+        this.setState({ status: Status.LOADED });
+        toast.info('Everything is loaded');
+      }
+    } catch (error) {
+      this.setState({ status: Status.REJECTED });
+      toast.error('oops :( Something wrong, try again');
+    }
   };
 
-  /** delete contact from list*/
-  onDelContact = e => {
-    const key = e.target.id;
+  loadMore = () => {
     this.setState(prevState => ({
-      contacts: prevState.contacts.filter(({ id }) => id !== key),
-    }));
-  };
-
-  handleIconClose = e => {
-    this.toggleModal();
-  };
-
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
+      page: prevState.page + 1,
     }));
   };
 
   /** render*/
   render() {
-    const { contacts, filter, showModal } = this.state;
-    // const visibleContacts = this.getVisibleContacts();
+    const { images, status } = this.state;
     return (
       <>
-        <Box
-          mx="auto"
-          px={15}
-          py={0}
-          display="flex"
-          flexDirection="column"
-          alignItems="center"
-          width={450}
-          as="section"
-        >
-          <h1>React</h1>
-          <Title>Phonebook</Title>
-          <AddContact toggleModal={this.toggleModal} />
-          {showModal && (
-            <Modal onClose={this.toggleModal}>
-              <ContactForm
-                title="Fill in the contact details"
-                onSubmit={this.formSubmitHandler}
-                toggleModal={this.toggleModal}
-              />
-            </Modal>
-          )}
-        </Box>
+        <Box py={0} as="section">
+          <Box m="0 auto" px={15} py={0}>
+            <ToastContainer />
+            <Title>Image Gallery</Title>
+            <SearchBar>
+              <SearchForm onClick={this.handleFormSubmit} />
+            </SearchBar>
 
-        <Box
-          mx="auto"
-          px={15}
-          py={0}
-          display="flex"
-          flexDirection="column"
-          // alignItems='center'
-          width={450}
-          as="section"
-        >
-          <Title>Contacts</Title>
-          {contacts.length ? (
-            <>
-              <Filter
-                name="filter"
-                value={filter}
-                changeFilter={this.changeFilter}
-                handleSearch={this.handleSearch}
+            {status === Status.PENDING && (
+              // <Box position="fixed" top="50vh" left="50vw">
+              <Circles
+                height="150"
+                width="150"
+                color=" #3f51b5"
+                ariaLabel="circles-loading"
+                wrapperStyle={{
+                  position: 'fixed',
+                  bottom: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%,-50%)',
+                  zIndex: '100',
+                }}
+                visible={true}
               />
-              <ContactList
-                contacts={this.getVisibleContacts()}
-                onDelContact={this.onDelContact}
-              />
-            </>
-          ) : (
-            <Notification message="There are no contacts" />
-          )}
+              // </Box>
+            )}
+
+            {images.length > 0 && (
+              <>
+                <ImageGallery images={images} />
+                <Box py="20px" display="flex" justifyContent="center">
+                  {status !== Status.LOADED && (
+                    <Button onClick={this.loadMore}>Load more</Button>
+                  )}
+                </Box>
+              </>
+            )}
+          </Box>
         </Box>
       </>
     );
