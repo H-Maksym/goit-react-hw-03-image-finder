@@ -36,7 +36,7 @@ export default class App extends Component {
 
   /**set contacts from Locale Storage */
   async componentDidUpdate(_, prevState) {
-    if (this.state.page > 2) {
+    if (this.state.page > 1) {
       const { scrollTop, clientHeight } = document.documentElement;
       window.scrollTo({
         top: scrollTop + clientHeight - 165,
