@@ -36,6 +36,14 @@ export default class App extends Component {
 
   /**set contacts from Locale Storage */
   async componentDidUpdate(_, prevState) {
+    if (this.state.page > 2) {
+      const { scrollTop, clientHeight } = document.documentElement;
+      window.scrollTo({
+        top: scrollTop + clientHeight - 165,
+        behavior: 'smooth',
+      });
+    }
+
     if (
       this.state.page !== prevState.page ||
       this.state.searchValue !== prevState.searchValue
@@ -49,6 +57,7 @@ export default class App extends Component {
     e.preventDefault();
     const searchValue = e.target.elements.query.value;
 
+    //componentShouldUpdate()
     if (
       searchValue.trim() !== this.state.searchValue ||
       this.state.page !== 1
@@ -69,9 +78,13 @@ export default class App extends Component {
     const { searchValue, page } = this.state;
     this.setState({ status: Status.PENDING });
     try {
+      console.log(this.state.status);
+      console.log('before', this.state.images.length);
+      console.log('before', this.state.totalHits);
+
       if (this.state.images.length > this.state.totalHits) {
         this.setState({ status: Status.LOADED });
-        toast.info('Все завантажено');
+        toast.info('Everything is loaded');
         return;
       }
 
@@ -94,6 +107,14 @@ export default class App extends Component {
         status: Status.RESOLVED,
       }));
 
+      if (page > 1) {
+        const { scrollHeight } = document.documentElement;
+        window.scrollTo({
+          top: scrollHeight,
+          behavior: 'smooth',
+        });
+      }
+
       if (data.hits.length < 12) {
         this.setState({ status: Status.LOADED });
         toast.info('Everything is loaded');
@@ -113,6 +134,8 @@ export default class App extends Component {
   /** render*/
   render() {
     const { images, status } = this.state;
+    console.log(status);
+
     return (
       <>
         <Box py={0} as="section">
